@@ -2,7 +2,7 @@
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-A level-of-detail triangle geometry base meant to graph 2d alorithms. Great for landscapes.
+An equilateral triangle geometry primitive.
 
 ## Usage
 

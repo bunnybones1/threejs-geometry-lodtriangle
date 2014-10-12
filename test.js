@@ -33,9 +33,8 @@ loadAndRunScripts(
 			// view.renderer.setClearColor(new THREE.Color(colors.splice(0, 1)[0]), 1);
 			var cursor = new THREE.Vector3();
 			// var mat = new THREE.MeshPhongMaterial();
-			for (var i = 4; i >= 0; i--) {
-				var steps = i + 1;
-				console.log(steps, new THREE.Color(colors[i]));
+			for (var i = 2; i >= 0; i--) {
+				var steps = i;
 				var lodTriangleGeometry = new LODTriangleGeometry(steps);
 				var lodTriangle = new THREE.Mesh(
 					lodTriangleGeometry,
@@ -55,7 +54,7 @@ loadAndRunScripts(
 				var lodTrianglePC = new THREE.PointCloud(
 					lodTrianglePCGeometry,
 					new THREE.PointCloudMaterial({
-						size: .004 * (colors.length-i),
+						size: .01 * (colors.length-i),
 						opacity: .5,
 						// transparent: true,
 						color: colors[i]
@@ -66,7 +65,7 @@ loadAndRunScripts(
 				lodTrianglePC.position.copy(cursor);
 				spin.add(lodTrianglePC);
 
-				cursor.y -= .008;
+				cursor.y += .001;
 			}
 		});
 

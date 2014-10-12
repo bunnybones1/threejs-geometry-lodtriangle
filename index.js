@@ -15,7 +15,9 @@ function LODTriangleGeometry(edgeSteps) {
 	var vAngle = uAngle + rotThird;
 	var wAngle = vAngle + rotThird;
 	var length = .05;
-	edgeSteps = edgeSteps || 12;
+	edgeSteps = edgeSteps === undefined ? 3 : edgeSteps;
+	edgeSteps = Math.pow(2, edgeSteps);
+	console.log(edgeSteps);
 	var u = new THREE.Vector2(Math.cos(uAngle), Math.sin(uAngle));
 	var v = new THREE.Vector2(Math.cos(vAngle), Math.sin(vAngle));
 	var w = new THREE.Vector2(Math.cos(wAngle), Math.sin(wAngle));
@@ -62,18 +64,11 @@ function LODTriangleGeometry(edgeSteps) {
 		var row = [];
 		var lastRow;
 
-		if(edgeSteps == 3) {
-			console.log(iRowLength, this.vertices.length);
-		}
 		for (var iFace = iRowLength; iFace > 0; iFace--) {
 			var d = cursor + iFace - iRowLength * 2 - 2;
 			var c = cursor + iFace;
 			var b = cursor - iFace+1;
 			var a = cursor - iFace;
-			if(edgeSteps == 3) {
-				console.log(iRowLength, ':', a, b, c);
-				console.log(iRowLength, ':', a, b, d);
-			}
 			if(a >= 0 && a < this.vertices.length && 
 				b >= 0 && b < this.vertices.length
 			) {
