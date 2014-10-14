@@ -1,6 +1,6 @@
 {
   "name": "threejs-geometry-lodtriangle",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "A level-of-detail triangle geometry base meant to graph 2d alorithms. Great for landscapes.",
   "main": "index.js",
   "license": "MIT",
