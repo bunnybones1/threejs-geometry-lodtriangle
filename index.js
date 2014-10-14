@@ -1,6 +1,43 @@
-function LODTriangleGeometry(edgeSteps) {
-	THREE.Geometry.call(this);
+var generateTriangleSteps = require('./generateTriangleUVWVectors');
+var indexLimit = Math.pow(2, 16);
+var maxRows = 2;
+var rowLength = 2;
+var cursor = 3 + 1;	//save one for hidden faces
+while(cursor <= indexLimit) {
+	var temp = cursor + rowLength;
+	if(temp > indexLimit) break;
+	cursor = temp;
+	maxRows++;
+	rowLength++;
+}
 
+var resultingRows = 2;
+var maxSudivisions = 0;
+var theoreticalFaces = 1;
+var theoreticalVertices = cursor;
+var rowLength = 2;
+while(resultingRows < maxRows) {
+	var temp = (resultingRows - 1) * 2 + 1;
+	theoreticalFaces*=4;
+
+	if(temp > maxRows) break;
+	resultingRows = temp;
+	maxSudivisions++;
+	console.log(maxSudivisions, resultingRows, theoreticalVertices, theoreticalFaces);
+}
+var vertexFarFarAway = new THREE.Vector3(0, 10000, 0);
+var nullColor = new THREE.Color(0, 0, 0);
+function nullPositionSampler(x, y) {
+	return new THREE.Vector3(x, 0, y);
+}
+
+function nullColorSampler(x, y) {
+	return new THREE.Color(0, 1, 0);
+}
+var StandardBufferGeometry = require('./StandardBufferGeometry');
+function LODTriangleGeometry(edgeSteps, positionSampler, colorSampler){
+	StandardBufferGeometry.call(this);
+	this.dynamic = false;
 	//        /
 	//		 /  
 	//      / /\ v
@@ -10,87 +47,146 @@ function LODTriangleGeometry(edgeSteps) {
 	//  --+-------w  \
 	//    |           \
 
-	var rotThird = Math.PI * 2 / 3;
-	var uAngle = Math.PI + rotThird * .5;
-	var vAngle = uAngle + rotThird;
-	var wAngle = vAngle + rotThird;
-	var length = .05;
-	edgeSteps = edgeSteps === undefined ? 3 : edgeSteps;
+	edgeSteps = edgeSteps === undefined ? 1 : edgeSteps;
 	edgeSteps = Math.pow(2, edgeSteps);
-	console.log(edgeSteps);
-	var u = new THREE.Vector2(Math.cos(uAngle), Math.sin(uAngle));
-	var v = new THREE.Vector2(Math.cos(vAngle), Math.sin(vAngle));
-	var w = new THREE.Vector2(Math.cos(wAngle), Math.sin(wAngle));
-	u.multiplyScalar(length);
-	v.multiplyScalar(length);
-	w.multiplyScalar(length);
-	var uStep = u.clone();
-	var vStep = v.clone();
-	var wStep = w.clone();
-	var stepLength = 1 / edgeSteps;
-	uStep.multiplyScalar(stepLength);
-	vStep.multiplyScalar(stepLength);
-	wStep.multiplyScalar(stepLength);
+	this.positionSampler = positionSampler || nullPositionSampler;
+	this.colorSampler = colorSampler || nullColorSampler;
 
-	var cursor = new THREE.Vector2();
-	cursor.sub(v.clone().multiplyScalar(1/3)).add(w.clone().multiplyScalar(1/3));
-	var sideWaysLeft = wStep;
-	var sideWaysRight = wStep.clone().multiplyScalar(-1);
-	var sideWays = sideWaysLeft;
-	var upLeft = vStep;
-	var upRight = uStep.clone().multiplyScalar(-1);
-	var up = upLeft;
+	var stepLength = this.stepLength = 1 / edgeSteps;
 
-	this.vertices.push(new THREE.Vector3(cursor.x, 0, cursor.y));
-	for (var iRowLength = edgeSteps; iRowLength >= 0; iRowLength--) {
-		sideWays = sideWays === sideWaysRight ? sideWaysLeft : sideWaysRight;
-		up = up === upRight ? upLeft : upRight;
-		for (var i = iRowLength; i > 0; i--) {
-			cursor.add(sideWays);
-			this.vertices.push(new THREE.Vector3(cursor.x, 0, cursor.y));
+	var recenteruvwSteps = generateTriangleSteps(1);
+	var uvwSteps = generateTriangleSteps(stepLength);
+	var u = uvwSteps.u;
+	var v = uvwSteps.v;
+	var w = uvwSteps.w;
+	this.startCoord = new THREE.Vector2();
+	this.startCoord.sub(recenteruvwSteps.u.multiplyScalar(1/3)).add(recenteruvwSteps.w.multiplyScalar(1/3));
+	var cursor = this.startCoord.clone();
+	var sideWaysLeft = -stepLength;
+	var sideWaysRight = stepLength;
+	var upLeft = v;
+	var upRight = w.clone().multiplyScalar(-1);
+	var up = upRight;
+	this.vertices.push(vertexFarFarAway);
+	this.colors.push(nullColor);
+	this.vertices.push(this.positionSampler(cursor.x, cursor.y));
+	this.colors.push(this.colorSampler(cursor.x, cursor.y));
+	this.totalRows = edgeSteps+1;
+	for (var iRowLength = this.totalRows; iRowLength > 0; iRowLength--) {
+		for (var i = iRowLength-1; i > 0; i--) {
+			cursor.x += sideWaysRight;
+			this.vertices.push(this.positionSampler(cursor.x, cursor.y));
+			this.colors.push(this.colorSampler(cursor.x, cursor.y));
 		};
-		// cursor.add(sideWays);
-		// this.vertices.push(new THREE.Vector3(cursor.x, 0, cursor.y));
-		cursor.add(up);
-		if(iRowLength > 0) {
-			this.vertices.push(new THREE.Vector3(cursor.x, 0, cursor.y));
+		cursor.x += sideWaysLeft * (iRowLength-1);
+		cursor.add(upRight);
+		if(iRowLength > 1) {
+			this.vertices.push(this.positionSampler(cursor.x, cursor.y));
+			this.colors.push(this.colorSampler(cursor.x, cursor.y));
 		}
 	}
 
-	var cursor = 0;
-	for (var iRowLength = edgeSteps; iRowLength >= 0; iRowLength--) {
-		cursor += iRowLength;
-		// console.log(iRowLength, cursor);
+	this.initBuffers(theoreticalVertices, theoreticalFaces);
+
+	var hiddenFace = new THREE.Face3(0, 0, 0);
+	for (var i = 0; i < theoreticalFaces; i++) {
+		this.addFace(0, 0, 0);
+	};
+
+
+	this.updateFaces();
+	this.updateBuffers();
+}
+
+LODTriangleGeometry.prototype = Object.create(StandardBufferGeometry.prototype);
+LODTriangleGeometry.prototype.updateFaces = function() {
+
+	var cursor = 1;
+	var faceCursor = 0;
+	for (var iRowLength = this.totalRows-1; iRowLength >= 0; iRowLength--) {
 		var row = [];
 		var lastRow;
 
-		for (var iFace = iRowLength; iFace > 0; iFace--) {
-			var d = cursor + iFace - iRowLength * 2 - 2;
-			var c = cursor + iFace;
-			var b = cursor - iFace+1;
-			var a = cursor - iFace;
-			if(a >= 0 && a < this.vertices.length && 
-				b >= 0 && b < this.vertices.length
-			) {
-				if((edgeSteps-iRowLength) % 2 == 0) {
-					var temp = a;
-					a = b;
-					b = temp;
-				}
-				if(c >= 0 && c < this.vertices.length) {
-					this.faces.push(new THREE.Face3(a, b, c));
-				}
-				if(d >= 0 && d < this.vertices.length) {
-					this.faces.push(new THREE.Face3(b, a, d));
-				}
-				// console.log(a, b, c);
+		for (var iFace = iRowLength-1; iFace >= 0; iFace--) {
+			var a = cursor + iFace;
+			var b = cursor + iFace + 1;
+			var c = cursor + iFace + iRowLength+1;
+			this.setFace(faceCursor, a, b, c);
+			faceCursor++;
+			if(iRowLength-1 > iFace) {
+				var d = cursor + iFace + iRowLength+2;
+				this.setFace(faceCursor, d, c, b);
+				faceCursor++;
 			}
 		};
 		cursor++;
+		cursor += iRowLength;
 	};
+
 }
 
 
-LODTriangleGeometry.prototype = Object.create(THREE.Geometry.prototype);
+LODTriangleGeometry.prototype.subdivide = function(iterations) {
+	iterations = iterations === undefined ? 1 : iterations;
+	var oldVertices = this.vertices;
+	var oldColors = this.colors;
 
+	this.stepLength *= .5;
+
+	var uvwSteps = generateTriangleSteps(this.stepLength);
+	var u = uvwSteps.u;
+	var v = uvwSteps.v;
+	var w = uvwSteps.w;
+	var upRight = w.clone().multiplyScalar(-1);
+	var sideWaysLeft = -this.stepLength;
+
+	var cursor = this.startCoord.clone();
+
+	this.totalRows = this.totalRows * 2 -1;
+
+	var vertices = [vertexFarFarAway];
+	var colors = [nullColor];
+	var oldCursor = 1;
+	for (var iRowLength = this.totalRows; iRowLength > 0; iRowLength--) {
+		var isRowEmpty = iRowLength%2 == 1;
+		if(isRowEmpty) {
+			for (var i = 0; i < iRowLength; i++) {
+				var alreadyExists = i%2 == 0;
+				if(alreadyExists) {
+					vertices.push(oldVertices[oldCursor]);
+					colors.push(oldColors[oldCursor]);
+					oldCursor++;
+				} else {
+					vertices.push(this.positionSampler(cursor.x, cursor.y));
+					colors.push(this.colorSampler(cursor.x, cursor.y));
+				}
+				cursor.x += this.stepLength;
+			}
+		} else {
+			for (var i = 0; i < iRowLength; i++) {
+				vertices.push(this.positionSampler(cursor.x, cursor.y));
+				colors.push(this.colorSampler(cursor.x, cursor.y));
+				cursor.x += this.stepLength;
+			}
+		}
+		cursor.x += iRowLength * sideWaysLeft;
+		cursor.add(upRight);
+	};
+
+	var total = this.vertices.length;
+	for (var i = cursor; i < total; i++) {
+		this.vertices[i] = oldVertices[i];
+		this.colors[i] = oldColors[i];
+	};
+
+	this.vertices = vertices;
+	this.colors = colors;
+
+	iterations--;
+	if(iterations > 0) this.subdivide(iterations);
+	else {
+		this.updateFaces();
+		this.updateBuffers();
+	}
+};
 module.exports = LODTriangleGeometry;
